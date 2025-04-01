@@ -662,7 +662,7 @@ export default function NewUserRequests() {
           user={editedUser}
           onUserChange={setEditedUser}
           onSave={() => handleUpdateUser(editUser.id)}
-          isLoading={isLoading}
+          // isLoading={isLoading}
         />
       )}
 
