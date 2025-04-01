@@ -1,0 +1,137 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["metrics"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+}
+
+model User {
+  id              String         @id @default(uuid())
+  email           String         @unique
+  password        String
+  name            String
+  phone           String         @unique
+  aadharNo        String         @unique
+  pan             String         @unique
+  gender          String
+  dob             DateTime
+  nomineeName     String
+  nomineeRelation String
+  bankName        String
+  accountNumber   String         @unique
+  accountHolder   String
+  ifscCode        String
+  address         String
+  isVerified      Boolean        @default(false)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  nomineeDob      DateTime
+  role            String         @default("user")
+  status          String         @default("active")
+  loanRequests    LoanRequest[]
+  orders          OrderHistory[]
+  transactions    Transaction[]
+}
+
+model Transaction {
+  id                String            @id @default(uuid())
+  userId            String
+  type              TransactionType
+  transactionId     String            @unique
+  razorpayPaymentId String?           @unique
+  razorpaySignature String?
+  status            TransactionStatus
+  amount            Float
+  currency          String            @default("INR")
+  description       String?
+  metadata          Json?
+  failureReason     String?
+  timestamp         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  paymentMethod     PaymentMethod?
+  verified          Boolean           @default(false)
+  user              User              @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@index([timestamp])
+}
+
+model OrderHistory {
+  id          String      @id @default(uuid())
+  userId      String
+  tradeDate   DateTime
+  symbol      String      @default("UNKNOWN")
+  quantity    Float
+  buyPrice    Float
+  sellPrice   Float?
+  type        String      @default("LONG")
+  status      TradeStatus @default(OPEN)
+  profitLoss  Float?
+  tradeAmount Float
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @default(now())
+  user        User        @relation(fields: [userId], references: [id])
+}
+
+model LoanRequest {
+  id        String     @id @default(uuid())
+  userId    String
+  amount    Float
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  duration  Int
+  status    LoanStatus @default(PENDING)
+  user      User       @relation(fields: [userId], references: [id])
+}
+
+model PaymentInfo {
+  id           String   @id @default(uuid())
+  type         String   @default("UPI")
+  upiId        String
+  merchantName String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+enum TransactionType {
+  WITHDRAW
+  DEPOSIT
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CARD
+  UPI
+  NETBANKING
+  WALLET
+}
+
+enum TradeType {
+  LONG
+  SHORT
+}
+
+enum TradeStatus {
+  PENDING
+  OPEN
+  CLOSED
+  PENDING_SELL
+}
+
+enum LoanStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
