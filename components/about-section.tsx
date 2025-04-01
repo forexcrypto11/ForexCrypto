@@ -91,8 +91,11 @@ export function AboutSection() {
               ))}
             </motion.div>
             
-            <Button className="bg-green-500 hover:bg-green-600 text-black font-semibold">
-              Investor Relations
+            <Button
+              className="bg-green-500 hover:bg-green-600 text-black font-semibold"
+              onClick={() => window.location.href = '/login'}
+            >
+              Start Trading
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </motion.div>

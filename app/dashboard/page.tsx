@@ -243,34 +243,36 @@ export default function DashboardPage() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
-        className="flex justify-between items-center"
+        className="flex flex-col md:flex-row md:justify-between md:items-center gap-4"
       >
         <div>
           <h1 className="text-3xl font-bold text-primary">Dashboard Overview</h1>
           <p className="text-sm text-muted-foreground mt-1">{formattedLastUpdated}</p>
         </div>
-        <div className="flex gap-4">
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
           <Button 
             onClick={handleRefresh}
             variant="outline"
             disabled={isRefreshing}
-            className="flex items-center gap-2"
+            className="flex items-center justify-center gap-2"
           >
             <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             {isRefreshing ? 'Refreshing...' : 'Refresh'}
           </Button>
-          <Button 
-            onClick={() => router.push('/dashboard/deposit')}
-            className="bg-green-500 hover:bg-green-600"
-          >
-            Deposit
-          </Button>
-          <Button 
-            onClick={() => router.push('/dashboard/withdraw')}
-            className="bg-primary hover:bg-primary/90"
-          >
-            Withdraw
-          </Button>
+          <div className="flex gap-2 sm:gap-4">
+            <Button 
+              onClick={() => router.push('/dashboard/deposit')}
+              className="flex-1 sm:flex-none bg-green-500 hover:bg-green-600"
+            >
+              Deposit
+            </Button>
+            <Button 
+              onClick={() => router.push('/dashboard/withdraw')}
+              className="flex-1 sm:flex-none bg-primary hover:bg-primary/90"
+            >
+              Withdraw
+            </Button>
+          </div>
         </div>
       </motion.div>
 

@@ -5,6 +5,7 @@ import { Users, Activity, Wallet, Coins, Clock, AlertTriangle, CheckCircle2, XCi
 import { useEffect, useState } from "react";
 import { useAuth } from "@/app/auth-context";
 import { useRouter } from "next/navigation";
+import { LoadingBar } from "@/components/loading-bar";
 import Link from "next/link";
 
 type AdminDashboardData = {
