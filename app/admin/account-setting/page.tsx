@@ -7,13 +7,13 @@ import { User, Mail, Lock, Shield, Save, X, Edit } from "lucide-react";
 export default function AdminAccountSettings() {
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
-    name: "Admin Patel",
-    email: "admin@patel.com",
+    name: "Adnan Shah",
+    email: "admin@forexcrypto.com",
     role: "Super Admin",
     securityLevel: "Level 3",
-    twoFactor: true,
+    twoFactor: false,
     timezone: "Asia/Kolkata",
-    darkMode: false
+    darkMode: true
   });
   const [tempData, setTempData] = useState({ ...formData });
 
@@ -174,7 +174,7 @@ export default function AdminAccountSettings() {
             )}
           </div>
 
-          <div className="flex items-center justify-between p-3 border rounded-lg">
+          {/* <div className="flex items-center justify-between p-3 border rounded-lg">
             <div>
               <p className="font-medium">Password</p>
               <p className="text-sm text-muted-foreground">Last changed 15 days ago</p>
@@ -182,7 +182,7 @@ export default function AdminAccountSettings() {
             <button className="text-primary hover:text-primary/80">
               Change Password
             </button>
-          </div>
+          </div> */}
         </div>
       </motion.div>
 

@@ -8,10 +8,19 @@ import { useAuth } from '@/app/auth-context';
 import { useRouter } from "next/navigation";
 import LoadingOverlay from "@/components/ui/loading-overlay";
 
+type Notification = {
+  id: number;
+  title: string;
+  message: string;
+  timestamp: string;
+  type: 'success' | 'warning' | 'info';
+};
+
 export function Header() {
   const { logout, name } = useAuth();
   const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [notifications] = useState<Notification[]>([]);
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -23,30 +32,6 @@ export function Header() {
       setIsLoggingOut(false);
     }
   };
-
-  const [notifications] = useState([
-    {
-      id: 1,
-      title: "Trade Executed",
-      message: "Your EUR/USD limit order at 1.0850 was filled",
-      timestamp: "2 min ago",
-      type: "success"
-    },
-    {
-      id: 2,
-      title: "Price Alert",
-      message: "GBP/USD has reached your alert level at 1.2700",
-      timestamp: "1 hour ago",
-      type: "warning"
-    },
-    {
-      id: 3,
-      title: "Deposit Received",
-      message: "₹5,000 deposit has been credited to your account",
-      timestamp: "4 hours ago",
-      type: "info"
-    }
-  ]);
 
   return (
     <>
@@ -97,36 +82,42 @@ export function Header() {
                     </div>
                     
                     <div className="max-h-96 overflow-y-auto">
-                      {notifications.map((notification) => (
-                        <Menu.Item key={notification.id}>
-                          {({ active }) => (
-                            <div className={`p-3 space-y-1 rounded-md ${
-                              active ? 'bg-accent' : ''
-                            }`}>
-                              <div className="flex items-start gap-3">
-                                <div className="shrink-0 pt-1">
-                                  {notification.type === 'success' ? (
-                                    <CheckCircle2 className="h-5 w-5 text-green-400" />
-                                  ) : notification.type === 'warning' ? (
-                                    <AlertTriangle className="h-5 w-5 text-yellow-400" />
-                                  ) : (
-                                   <IndianRupee  className="h-5 w-5 text-blue-400" />
-                                  )}
-                                </div>
-                                <div className="flex-1">
-                                  <h4 className="font-medium">{notification.title}</h4>
-                                  <p className="text-sm text-muted-foreground">
-                                    {notification.message}
-                                  </p>
-                                  <time className="text-xs text-muted-foreground/80">
-                                    {notification.timestamp}
-                                  </time>
+                      {notifications.length === 0 ? (
+                        <div className="p-3 text-center text-muted-foreground">
+                          No notifications
+                        </div>
+                      ) : (
+                        notifications.map((notification) => (
+                          <Menu.Item key={notification.id}>
+                            {({ active }) => (
+                              <div className={`p-3 space-y-1 rounded-md ${
+                                active ? 'bg-accent' : ''
+                              }`}>
+                                <div className="flex items-start gap-3">
+                                  <div className="shrink-0 pt-1">
+                                    {notification.type === 'success' ? (
+                                      <CheckCircle2 className="h-5 w-5 text-green-400" />
+                                    ) : notification.type === 'warning' ? (
+                                      <AlertTriangle className="h-5 w-5 text-yellow-400" />
+                                    ) : (
+                                     <IndianRupee  className="h-5 w-5 text-blue-400" />
+                                    )}
+                                  </div>
+                                  <div className="flex-1">
+                                    <h4 className="font-medium">{notification.title}</h4>
+                                    <p className="text-sm text-muted-foreground">
+                                      {notification.message}
+                                    </p>
+                                    <time className="text-xs text-muted-foreground/80">
+                                      {notification.timestamp}
+                                    </time>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          )}
-                        </Menu.Item>
-                      ))}
+                            )}
+                          </Menu.Item>
+                        ))
+                      )}
                     </div>
                   </div>
                 </Menu.Items>
