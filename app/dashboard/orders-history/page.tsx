@@ -719,7 +719,7 @@ export default function OrdersHistoryPage() {
                     <td className="p-3">
                       <div className="flex items-center gap-2">
                         <Calendar className="h-4 w-4 text-muted-foreground" />
-                        {new Date(order.createdAt).toLocaleDateString()}
+                        {new Date(order.tradeDate).toLocaleDateString()}
                       </div>
                     </td>
                     <td className="p-3 font-medium">{order.symbol}</td>
@@ -730,7 +730,7 @@ export default function OrdersHistoryPage() {
                     <td className="p-3 text-right">{order.sellPrice ? `₹${order.sellPrice}` : '-'}</td>
                     <td className="p-3">
                       <span className={`px-2 py-1 rounded-full text-xs ${
-                        order.type === 'BUY' ? 'bg-green-400/10 text-green-400' : 'bg-red-400/10 text-red-400'
+                        order.type === 'LONG' ? 'bg-green-400/10 text-green-400' : 'bg-red-400/10 text-red-400'
                       }`}>
                         {order.type}
                       </span>
