@@ -282,15 +282,24 @@ export default function DepositPage() {
     setIsLoadingPaymentInfo(true);
     try {
       const timestamp = new Date().getTime(); // Add timestamp to prevent caching
-      const response = await fetch(`/api/payment-info?t=${timestamp}`, {
-        method: 'GET',
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        },
-        next: { revalidate: 0 }
-      });
+      // const response = await fetch(`/api/payment-info?t=${timestamp}`, {
+      //   method: 'GET',
+      //   headers: {
+      //     'Cache-Control': 'no-cache, no-store, must-revalidate',
+      //     'Pragma': 'no-cache',
+      //     'Expires': '0'
+      //   },
+      //   next: { revalidate: 0 }
+      // });
+
+// Add refresh parameter when needed
+const response = await fetch(`/api/payment-info?refresh=${new Date().getTime()}`, {
+  cache: 'no-store',
+  headers: {
+    'Cache-Control': 'no-cache'
+  }
+});
+
       const data = await response.json();
       
       if (data.success && data.paymentInfo) {

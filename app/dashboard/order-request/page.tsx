@@ -466,8 +466,8 @@ export default function OrderRequestPage() {
               <div className="flex justify-between items-center">
                 <span className="text-sm font-medium">Total Amount:</span>
                 <div className="flex items-center gap-1 text-lg font-bold">
-                  <DollarSign className="h-4 w-4" />
-                  <span>{calculateTradeAmount().toFixed(2)}</span>
+                  
+                ₹<span>{calculateTradeAmount().toFixed(2)}</span>
                 </div>
               </div>
             </div>

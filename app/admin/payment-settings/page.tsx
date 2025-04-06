@@ -207,13 +207,21 @@ export default function PaymentSettingsPage() {
     
     try {
       const timestamp = new Date().getTime(); // Add timestamp to prevent caching
-      const response = await fetch(`/api/admin/payment-info?t=${timestamp}`, {
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        }
-      });
+      // const response = await fetch(`/api/admin/payment-info?t=${timestamp}`, {
+      //   headers: {
+      //     'Cache-Control': 'no-cache, no-store, must-revalidate',
+      //     'Pragma': 'no-cache',
+      //     'Expires': '0'
+      //   }
+      // });
+
+      // Add refresh parameter when needed
+const response = await fetch(`/api/payment-info?refresh=${new Date().getTime()}`, {
+  cache: 'no-store',
+  headers: {
+    'Cache-Control': 'no-cache'
+  }
+});
       const data = await response.json();
       
       if (data.success && data.paymentInfo) {

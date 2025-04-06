@@ -49,9 +49,9 @@ export function EditOrderModal({
         quantity: order.quantity,
         buyPrice: order.buyPrice,
         sellPrice: order.sellPrice || 0,
-        tradeAmount: order.quantity * order.buyPrice,
-        type: order.type === 'BUY' ? TradeType.LONG : TradeType.SHORT,
-        status: order.status as unknown as TradeStatus,
+        tradeAmount: order.tradeAmount,
+        type: order.type,
+        status: order.status,
       });
     } else {
       setFormData({
@@ -76,13 +76,13 @@ export function EditOrderModal({
         ? (formData.sellPrice - (formData.buyPrice || 0)) * (formData.quantity || 0)
         : null;
     
-      onSave({
+      await onSave({
         ...formData,
-        type: formData.type === TradeType.LONG ? 'BUY' : 'SELL',
         id: order?.id || "",
+        tradeDate: order?.tradeDate || new Date(),
         profitLoss,
-        createdAt: (typeof order?.createdAt === 'string' ? new Date(order.createdAt) : order?.createdAt || new Date()).toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: order?.createdAt || new Date(),
+        updatedAt: new Date(),
       } as Order);
       
       onClose();
