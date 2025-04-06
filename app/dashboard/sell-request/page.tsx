@@ -414,17 +414,17 @@ export default function SellRequestPage() {
                   <div className="flex items-center gap-2">
                     <Calendar className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm text-muted-foreground">
-                      {new Date(order.createdAt).toLocaleDateString()}
+                      {new Date(order.tradeDate).toLocaleDateString()}
                     </span>
                   </div>
                   <span
                     className={`px-2 py-1 rounded-full text-xs ${
-                      order.type === "BUY"
+                      order.type === "LONG"
                         ? "bg-green-400/10 text-green-400"
                         : "bg-red-400/10 text-red-400"
                     } flex items-center gap-1`}
                   >
-                    {order.type === "BUY" ? 
+                    {order.type === "LONG" ? 
                       <TrendingUp className="h-3 w-3" /> : 
                       <TrendingDown className="h-3 w-3" />
                     }
