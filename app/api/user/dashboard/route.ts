@@ -9,25 +9,22 @@ export async function GET(request: Request) {
     }
 
     try {
-        // Fetch user details
-        const user = await prisma.user.findUnique({
-            where: { id: userId },
-            select: {
-                name: true,
-                email: true,
-            }
-        });
-
-        // Fetch account statistics
+        // Fetch all data in parallel for better performance
         const [
+            user,
             totalDeposits,
             totalWithdrawals,
             recentTransactions,
             openPositions,
             closedPositions,
             approvedLoan,
-            verifiedOrdersAmount
+            verifiedOrdersAmount,
+            totalVolumeData,
+            totalTradesCount
         ] = await Promise.all([
+            prisma.user.findUnique({
+                where: { id: userId }
+            }),
             prisma.transaction.aggregate({
                 where: {
                     userId,
@@ -126,61 +123,49 @@ export async function GET(request: Request) {
                     ]
                 },
                 _sum: { tradeAmount: true }
+            }),
+            prisma.orderHistory.aggregate({
+                where: { userId },
+                _sum: { tradeAmount: true }
+            }),
+            prisma.orderHistory.count({
+                where: { userId }
             })
         ]);
 
-        // Get approved loan amount 
+        // Calculate values
+        const baseAccountBalance = (totalDeposits._sum.amount || 0) - (totalWithdrawals._sum.amount || 0);
         const approvedLoanAmount = approvedLoan?._sum?.amount ?? 0;
-        
-        // Get total amount for all verified orders (open and closed)
         const totalOrdersAmount = verifiedOrdersAmount?._sum?.tradeAmount ?? 0;
         
-        // Calculate account balance and other metrics
-        const baseAccountBalance = (totalDeposits._sum.amount || 0) - (totalWithdrawals._sum.amount || 0);
-        const accountBalance = baseAccountBalance + approvedLoanAmount - totalOrdersAmount;
-        
-        // Calculate profit/loss from open positions
-        const openPositionsProfitLoss = openPositions.reduce((sum, position) => 
-            sum + (position.profitLoss || 0), 0);
-        
-        // Calculate profit/loss from closed positions
+        // Calculate profit/loss from orders
         const closedPositionsProfitLoss = closedPositions.reduce((sum, position) => 
             sum + (position.profitLoss || 0), 0);
             
-        // Total profit/loss (combined)
-        const totalProfitLoss = openPositionsProfitLoss + closedPositionsProfitLoss;
-        
-        // Calculate total trading volume
-        const totalTrades = await prisma.orderHistory.count({
-            where: { userId }
-        });
-        
-        // Calculate total volume across all orders
-        const totalVolumeData = await prisma.orderHistory.aggregate({
-            where: { userId },
-            _sum: { tradeAmount: true }
-        });
-        
-        const totalVolume = totalVolumeData._sum.tradeAmount || 0;
+        const openPositionsProfitLoss = openPositions.reduce((sum, position) => 
+            sum + (position.profitLoss || 0), 0);
+            
+        const totalProfitLoss = closedPositionsProfitLoss + openPositionsProfitLoss;
 
         return NextResponse.json({
-            user,
             dashboardData: {
-                accountBalance,
+                accountBalance: baseAccountBalance + approvedLoanAmount - totalOrdersAmount + totalProfitLoss,
                 baseAccountBalance,
                 totalDeposits: totalDeposits._sum.amount || 0,
                 totalWithdrawals: totalWithdrawals._sum.amount || 0,
                 openPositionsProfitLoss,
                 closedPositionsProfitLoss,
                 totalProfitLoss,
-                totalTrades,
-                totalVolume,
+                totalTrades: totalTradesCount,
+                totalVolume: totalVolumeData._sum.tradeAmount || 0,
                 approvedLoanAmount,
                 totalOrdersAmount,
-                approvedLoanDetails: approvedLoan,
                 recentTransactions,
                 openPositions,
-                closedPositions
+                closedPositions,
+                totalOpenOrdersAmount: openPositions.reduce((sum, pos) => sum + (pos.tradeAmount || 0), 0),
+                totalClosedOrdersAmount: closedPositions.reduce((sum, pos) => sum + (pos.tradeAmount || 0), 0),
+                approvedLoanDetails: approvedLoan
             }
         });
     } catch (error) {

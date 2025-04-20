@@ -43,6 +43,9 @@ export async function POST(req: Request) {
         id: orderId,
         status: TradeStatus.PENDING_SELL as any,
       },
+      include: {
+        user: true // Include user data to update their totals
+      }
     });
 
     if (!order) {
@@ -55,19 +58,30 @@ export async function POST(req: Request) {
     // Calculate profit/loss
     const profitLoss = (sellPrice - order.buyPrice) * order.quantity;
 
-    // Update the order to CLOSED status with sell price and profit/loss
-    const updatedOrder = await prisma.orderHistory.update({
-      where: {
-        id: orderId,
-      },
-      data: {
-        status: TradeStatus.CLOSED as any,
-        sellPrice: sellPrice,
-        profitLoss,
-      },
-    });
+    // Update both the order AND user's profit totals in a transaction
+    const [updatedOrder, updatedUser] = await prisma.$transaction([
+      prisma.orderHistory.update({
+        where: { id: orderId },
+        data: {
+          status: TradeStatus.CLOSED as any,
+          sellPrice: sellPrice,
+          profitLoss,
+          updatedAt: new Date()
+        },
+      }),
+      prisma.user.update({
+        where: { id: order.userId },
+        data: {
+          updatedAt: new Date()
+        }
+      })
+    ]);
 
-    return NextResponse.json({ success: true, order: updatedOrder });
+    return NextResponse.json({ 
+      success: true, 
+      order: updatedOrder,
+      user: updatedUser
+    });
   } catch (error) {
     console.error("Error approving sell request:", error);
     return NextResponse.json(
