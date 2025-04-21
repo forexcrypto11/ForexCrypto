@@ -42,6 +42,9 @@ export default function OrdersHistoryPage() {
   const [sellPrice, setSellPrice] = useState<number>(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [sellError, setSellError] = useState<string | null>(null);
+  const [totalProfitLoss, setTotalProfitLoss] = useState<number>(0);
+  const [openPositionsPL, setOpenPositionsPL] = useState<number>(0);
+  const [closedPositionsPL, setClosedPositionsPL] = useState<number>(0);
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -52,16 +55,30 @@ export default function OrdersHistoryPage() {
   const fetchOrders = async () => {
     try {
       setLoading(true);
+      console.log("[ORDER-HISTORY] Fetching orders data...");
+      
       const response = await fetch('/api/orders', {
         headers: {
           'x-user-id': user?.id || ''
         }
       });
+      
       if (!response.ok) {
         throw new Error('Failed to fetch orders');
       }
+      
       const data = await response.json();
       setOrders(data.orders);
+      
+      // Use the profit/loss values from the API response
+      console.log("[ORDER-HISTORY] API returned total P/L:", data.totalProfitLoss);
+      console.log("[ORDER-HISTORY] API returned closed positions P/L:", data.closedPositionsProfitLoss);
+      console.log("[ORDER-HISTORY] API returned open positions P/L:", data.openPositionsProfitLoss);
+      
+      setTotalProfitLoss(data.totalProfitLoss);
+      setClosedPositionsPL(data.closedPositionsProfitLoss);
+      setOpenPositionsPL(data.openPositionsProfitLoss);
+      
     } catch (error) {
       console.error('Error fetching orders:', error);
     } finally {
@@ -89,6 +106,10 @@ export default function OrdersHistoryPage() {
     );
   }
 
+  // Calculate summary values
+  const totalTrades = orders.length;
+  const totalInvestment = orders.reduce((sum, o) => sum + (o.quantity * o.buyPrice), 0);
+  
   return (
     <div className="space-y-6 p-4 md:p-6">
       <motion.div
@@ -101,7 +122,53 @@ export default function OrdersHistoryPage() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {/* Add your summary cards here */}
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="bg-background/80 backdrop-blur-lg rounded-xl border p-6 shadow-sm"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Total Trades</p>
+              <p className="text-2xl font-semibold mt-2">{totalTrades}</p>
+            </div>
+            <div className="p-2 rounded-lg bg-primary/10">
+              <Briefcase className="h-6 w-6 text-primary" />
+            </div>
+          </div>
+        </motion.div>
+
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.1 }}
+          className="bg-background/80 backdrop-blur-lg rounded-xl border p-6 shadow-sm"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Total Investments</p>
+              <p className="text-2xl font-semibold mt-2">₹{totalInvestment.toLocaleString()}</p>
+            </div>
+            <div className="p-2 rounded-lg bg-primary/10">
+              <Coins className="h-6 w-6 text-primary" />
+            </div>
+          </div>
+        </motion.div>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle>Profit/Loss</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className={`text-2xl font-semibold mt-2 ${totalProfitLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              ₹{Math.abs(totalProfitLoss).toLocaleString()}
+            </p>
+            <div className="flex flex-col mt-2 text-xs text-muted-foreground">
+              <span>Closed: ₹{closedPositionsPL.toLocaleString()}</span>
+              <span>Open: ₹{openPositionsPL.toLocaleString()}</span>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Orders Table */}
@@ -117,7 +184,7 @@ export default function OrdersHistoryPage() {
             Order History
           </h3>
           <div className="flex items-center gap-4 text-sm">
-            {/* Add your filter buttons here */}
+            {/* Add filter buttons here if needed */}
           </div>
         </div>
         
@@ -154,7 +221,56 @@ export default function OrdersHistoryPage() {
             </div>
           ) : (
             <table className="w-full">
-              {/* Add your table content here */}
+              <thead className="text-xs text-muted-foreground border-b">
+                <tr>
+                  <th className="p-3 text-left">Date</th>
+                  <th className="p-3 text-left">Symbol</th>
+                  <th className="p-3 text-right">Qty</th>
+                  <th className="p-3 text-right">Buy Price</th>
+                  <th className="p-3 text-right">Sell Price</th>
+                  <th className="p-3 text-left">Type</th>
+                  <th className="p-3 text-right">P&L</th>
+                  <th className="p-3 text-left">Status</th>
+                  <th className="p-3 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {orders.map((order, idx) => (
+                  <tr key={order.id} className="border-b hover:bg-accent/5">
+                    <td className="p-3">
+                      {new Date(order.tradeDate).toLocaleDateString()}
+                    </td>
+                    <td className="p-3 font-medium">{order.symbol}</td>
+                    <td className="p-3 text-right">{order.quantity}</td>
+                    <td className="p-3 text-right">₹{order.buyPrice}</td>
+                    <td className="p-3 text-right">{order.sellPrice ? `₹${order.sellPrice}` : '-'}</td>
+                    <td className="p-3">
+                      <span className={`px-2 py-1 rounded-full text-xs ${
+                        order.type === 'LONG' ? 'bg-green-400/10 text-green-400' : 'bg-red-400/10 text-red-400'
+                      }`}>
+                        {order.type}
+                      </span>
+                    </td>
+                    <td className={`p-3 text-right font-medium ${
+                      order.profitLoss ? (order.profitLoss >= 0 ? 'text-green-500' : 'text-red-500') : ''
+                    }`}>
+                      {order.profitLoss ? `₹${Math.abs(order.profitLoss).toLocaleString()}` : '-'}
+                    </td>
+                    <td className="p-3">
+                      <span className={`px-2 py-1 rounded-full text-xs ${
+                        order.status === 'OPEN' ? 'bg-yellow-400/10 text-yellow-400' : 
+                        order.status === 'CLOSED' ? 'bg-blue-400/10 text-blue-400' : 
+                        'bg-purple-400/10 text-purple-400'
+                      }`}>
+                        {order.status}
+                      </span>
+                    </td>
+                    <td className="p-3 text-center">
+                      {/* Add action buttons here if needed */}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
             </table>
           )}
         </div>

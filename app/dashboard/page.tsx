@@ -77,24 +77,92 @@ export default function DashboardPage() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [pendingUpdates, setPendingUpdates] = useState<Partial<DashboardData>>({});
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  
+  // Frontend-calculated profit/loss values from API
+  const [totalProfitLoss, setTotalProfitLoss] = useState<number>(0);
+  const [openPositionsPL, setOpenPositionsPL] = useState<number>(0);
+  const [closedPositionsPL, setClosedPositionsPL] = useState<number>(0);
+  
+  // Investment and trades data from API 
+  const [totalInvestment, setTotalInvestment] = useState<number>(0);
+  const [apiOpenTradesCount, setApiOpenTradesCount] = useState<number>(0);
+  const [apiOrders, setApiOrders] = useState<any[]>([]);
 
   // Optimistically merged data
   const displayData = useMemo(() => {
-    return dashboardData ? { ...dashboardData, ...pendingUpdates } : null;
-  }, [dashboardData, pendingUpdates]);
+    return dashboardData ? { 
+      ...dashboardData, 
+      ...pendingUpdates,
+      // Override the backend profit/loss with our consistent calculation
+      totalProfitLoss,
+      openPositionsProfitLoss: openPositionsPL,
+      closedPositionsProfitLoss: closedPositionsPL,
+    } : null;
+  }, [dashboardData, pendingUpdates, totalProfitLoss, openPositionsPL, closedPositionsPL]);
 
-  // Memoized calculations
+  // Memoized calculations with overrides from API
   const { openTradesCount, openTradesInvestment, totalInvestmentsDone } = useMemo(() => {
-    const openTradesCount = displayData?.openPositions?.length || 0;
-    const openTradesInvestment = displayData?.openPositions?.reduce(
-      (sum, position) => sum + (position.quantity * position.buyPrice), 0
-    ) || 0;
-    const totalInvestmentsDone = openTradesInvestment + (displayData?.closedPositions?.reduce(
-      (sum, position) => sum + (position.quantity * position.buyPrice), 0
-    ) || 0);
+    // Use the values from the API call to /api/orders instead of calculating them here
+    return { 
+      openTradesCount: apiOpenTradesCount, 
+      openTradesInvestment: apiOrders
+        .filter(order => order.status === "OPEN")
+        .reduce((sum, order) => sum + (order.quantity * order.buyPrice), 0),
+      totalInvestmentsDone: totalInvestment
+    };
+  }, [apiOpenTradesCount, apiOrders, totalInvestment]);
 
-    return { openTradesCount, openTradesInvestment, totalInvestmentsDone };
-  }, [displayData]);
+  // Fetch profit/loss data from the orders API
+  const fetchProfitLossData = useCallback(async () => {
+    if (!userId) return;
+    
+    try {
+      console.log("[DASHBOARD] Fetching profit/loss from /api/orders endpoint");
+      const response = await fetch('/api/orders', {
+        headers: {
+          'x-user-id': userId,
+          'Cache-Control': 'no-cache'
+        },
+        cache: 'no-store'
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Make sure we're using the same profit/loss values as the order history page
+        console.log("[DASHBOARD] Using API-calculated profit/loss values:");
+        console.log(`- Total P/L: ${data.totalProfitLoss}`);
+        console.log(`- Closed positions P/L: ${data.closedPositionsProfitLoss}`);
+        console.log(`- Open positions P/L: ${data.openPositionsProfitLoss}`);
+        
+        setTotalProfitLoss(data.totalProfitLoss);
+        setClosedPositionsPL(data.closedPositionsProfitLoss);
+        setOpenPositionsPL(data.openPositionsProfitLoss);
+        
+        // Save the order data for investment calculations
+        setApiOrders(data.orders);
+        
+        // Calculate open trades count
+        const openOrders = data.orders.filter(order => order.status === "OPEN");
+        setApiOpenTradesCount(openOrders.length);
+        
+        // Calculate total investment
+        const investment = data.orders.reduce((sum, order) => 
+          sum + (order.quantity * order.buyPrice), 0);
+        setTotalInvestment(investment);
+        
+        console.log("[DASHBOARD] Total investment from API:", investment);
+        console.log("[DASHBOARD] Open trades count from API:", openOrders.length);
+        
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error("Failed to fetch profit/loss data:", error);
+      return false;
+    }
+  }, [userId]);
 
   const fetchDashboardData = useCallback(async (silent = false) => {
     if (!userId) return false;
@@ -102,6 +170,7 @@ export default function DashboardPage() {
     try {
       if (!silent) setIsRefreshing(true);
       
+      // Fetch dashboard data
       const response = await fetch(`/api/user/dashboard`, {
         headers: { 
           'X-User-Id': userId,
@@ -112,11 +181,22 @@ export default function DashboardPage() {
       
       if (response.ok) {
         const { dashboardData: newData } = await response.json();
+        
+        // Log the backend-calculated values
+        console.log("[DASHBOARD] Backend profit/loss values (will be overridden):");
+        console.log(`- Total P/L: ${newData.totalProfitLoss}`);
+        console.log(`- Closed positions P/L: ${newData.closedPositionsProfitLoss}`);
+        console.log(`- Open positions P/L: ${newData.openPositionsProfitLoss}`);
+        
         cachedData = newData;
         setDashboardData(newData);
         setLastUpdated(new Date());
         setPendingUpdates({});
         setIsLoading(false);
+        
+        // Fetch profit/loss data from the orders API for consistency
+        await fetchProfitLossData();
+        
         return true;
       }
       return false;
@@ -127,7 +207,7 @@ export default function DashboardPage() {
     } finally {
       setIsRefreshing(false);
     }
-  }, [userId]);
+  }, [userId, fetchProfitLossData]);
 
   useEffect(() => {
     if (!userId) return;
@@ -439,13 +519,13 @@ export default function DashboardPage() {
                 <div>
                   <p className="text-sm text-muted-foreground">Closed Positions P&L</p>
                   <p className={`text-2xl font-semibold mt-2 ${
-                    (dashboardData?.closedPositionsProfitLoss || 0) >= 0 ? 'text-green-400' : 'text-red-400'
+                    closedPositionsPL >= 0 ? 'text-green-400' : 'text-red-400'
                   }`}>
-                    ₹{Math.abs(dashboardData?.closedPositionsProfitLoss || 0).toLocaleString()}
+                    ₹{Math.abs(closedPositionsPL).toLocaleString()}
                   </p>
                 </div>
                 <div className="p-2 rounded-lg bg-primary/10">
-                  {(dashboardData?.closedPositionsProfitLoss || 0) >= 0 ? (
+                  {closedPositionsPL >= 0 ? (
                     <ArrowUpRight className="h-6 w-6 text-green-400" />
                   ) : (
                     <ArrowDownRight className="h-6 w-6 text-red-400" />
@@ -549,7 +629,7 @@ export default function DashboardPage() {
                         <span>Open Order Investments</span>
                       </div>
                       <span className="text-sm font-medium">
-                        -₹{dashboardData?.totalOpenOrdersAmount.toLocaleString() || "0"}
+                        -₹{openTradesInvestment.toLocaleString()}
                       </span>
                     </div>
                     <div className="text-xs text-muted-foreground pl-5">
@@ -572,16 +652,20 @@ export default function DashboardPage() {
                   </div>
                 ) : null}
 
-                {dashboardData?.totalProfitLoss !== undefined && (
+                {displayData?.totalProfitLoss !== undefined && (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <div className={`h-3 w-3 rounded-full ${dashboardData.totalProfitLoss >= 0 ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                        <div className={`h-3 w-3 rounded-full ${displayData.totalProfitLoss >= 0 ? 'bg-green-500' : 'bg-red-500'}`}></div>
                         <span>Profit/Loss</span>
                       </div>
-                      <span className={`text-sm font-medium ${dashboardData.totalProfitLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                        {dashboardData.totalProfitLoss >= 0 ? '+' : '-'}₹{Math.abs(dashboardData.totalProfitLoss).toLocaleString()}
+                      <span className={`text-sm font-medium ${displayData.totalProfitLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        {displayData.totalProfitLoss >= 0 ? '+' : '-'}₹{Math.abs(displayData.totalProfitLoss).toLocaleString()}
                       </span>
+                    </div>
+                    <div className="flex flex-col pl-5 text-xs text-muted-foreground">
+                      <span>Closed positions: {closedPositionsPL >= 0 ? '+' : '-'}₹{Math.abs(closedPositionsPL).toLocaleString()}</span>
+                      <span>Open positions: {openPositionsPL >= 0 ? '+' : '-'}₹{Math.abs(openPositionsPL).toLocaleString()}</span>
                     </div>
                   </div>
                 )}
@@ -592,10 +676,10 @@ export default function DashboardPage() {
                       <span>Available Balance</span>
                     </div>
                     <span className="font-semibold">
-                      ₹{((dashboardData?.baseAccountBalance || 0) + 
-                         (dashboardData?.approvedLoanAmount || 0) - 
-                         (dashboardData?.totalOpenOrdersAmount || 0) + 
-                         (dashboardData?.totalProfitLoss || 0)).toLocaleString()}
+                      ₹{((displayData?.baseAccountBalance || 0) + 
+                         (displayData?.approvedLoanAmount || 0) - 
+                         (displayData?.totalOpenOrdersAmount || 0) + 
+                         (displayData?.totalProfitLoss || 0)).toLocaleString()}
                     </span>
                   </div>
                 </div>

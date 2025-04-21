@@ -8,6 +8,8 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    console.log("[API:DASHBOARD] Processing dashboard request for user:", userId);
+
     try {
         // Fetch all data in parallel for better performance
         const [
@@ -133,23 +135,59 @@ export async function GET(request: Request) {
             })
         ]);
 
+        console.log("[API:DASHBOARD] Data fetched successfully");
+        console.log(`[API:DASHBOARD] Open positions: ${openPositions.length}`);
+        console.log(`[API:DASHBOARD] Closed positions retrieved: ${closedPositions.length}`);
+
         // Calculate values
         const baseAccountBalance = (totalDeposits._sum.amount || 0) - (totalWithdrawals._sum.amount || 0);
         const approvedLoanAmount = approvedLoan?._sum?.amount ?? 0;
         const totalOrdersAmount = verifiedOrdersAmount?._sum?.tradeAmount ?? 0;
         
         // Calculate profit/loss from orders
-        const closedPositionsProfitLoss = closedPositions.reduce((sum, position) => 
-            sum + (position.profitLoss || 0), 0);
-            
-        const openPositionsProfitLoss = openPositions.reduce((sum, position) => 
-            sum + (position.profitLoss || 0), 0);
+        console.log("[API:DASHBOARD] Calculating profit/loss");
+        
+        // Log details of each closed position
+        console.log("[API:DASHBOARD] Closed position details:");
+        closedPositions.forEach(position => {
+            console.log(`[API:DASHBOARD] Closed position ${position.id}: PL = ${position.profitLoss || 0}`);
+        });
+        
+        const closedPositionsProfitLoss = closedPositions.reduce((sum, position) => {
+            return sum + (position.profitLoss || 0);
+        }, 0);
+        
+        console.log(`[API:DASHBOARD] Total closed positions P/L: ${closedPositionsProfitLoss}`);
+        
+        // Log details of each open position
+        console.log("[API:DASHBOARD] Open position details:");
+        openPositions.forEach(position => {
+            console.log(`[API:DASHBOARD] Open position ${position.id}: PL = ${position.profitLoss || 0}`);
+        });
+        
+        const openPositionsProfitLoss = openPositions.reduce((sum, position) => {
+            return sum + (position.profitLoss || 0);
+        }, 0);
+        
+        console.log(`[API:DASHBOARD] Total open positions P/L: ${openPositionsProfitLoss}`);
             
         const totalProfitLoss = closedPositionsProfitLoss + openPositionsProfitLoss;
+        console.log(`[API:DASHBOARD] Total P/L (closed + open): ${totalProfitLoss}`);
+
+        // Calculate additional values for the response
+        const totalOpenOrdersAmount = openPositions.reduce((sum, pos) => sum + (pos.tradeAmount || 0), 0);
+        const totalClosedOrdersAmount = closedPositions.reduce((sum, pos) => sum + (pos.tradeAmount || 0), 0);
+        
+        console.log(`[API:DASHBOARD] Account balance components:`);
+        console.log(`- Base balance: ${baseAccountBalance}`);
+        console.log(`- Approved loan: ${approvedLoanAmount}`);
+        console.log(`- Open orders: ${totalOpenOrdersAmount}`);
+        console.log(`- Total P/L: ${totalProfitLoss}`);
+        console.log(`= Final balance: ${baseAccountBalance + approvedLoanAmount - totalOpenOrdersAmount + totalProfitLoss}`);
 
         return NextResponse.json({
             dashboardData: {
-                accountBalance: baseAccountBalance + approvedLoanAmount - totalOrdersAmount + totalProfitLoss,
+                accountBalance: baseAccountBalance + approvedLoanAmount - totalOpenOrdersAmount + totalProfitLoss,
                 baseAccountBalance,
                 totalDeposits: totalDeposits._sum.amount || 0,
                 totalWithdrawals: totalWithdrawals._sum.amount || 0,
@@ -163,8 +201,8 @@ export async function GET(request: Request) {
                 recentTransactions,
                 openPositions,
                 closedPositions,
-                totalOpenOrdersAmount: openPositions.reduce((sum, pos) => sum + (pos.tradeAmount || 0), 0),
-                totalClosedOrdersAmount: closedPositions.reduce((sum, pos) => sum + (pos.tradeAmount || 0), 0),
+                totalOpenOrdersAmount,
+                totalClosedOrdersAmount,
                 approvedLoanDetails: approvedLoan
             }
         });
