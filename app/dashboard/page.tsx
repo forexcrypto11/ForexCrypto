@@ -7,7 +7,7 @@ import {
   TrendingDown, RefreshCw, AlertCircle, Clock, BarChart3,
   History, Coins, Briefcase
 } from "lucide-react";
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useAuth } from "@/app/auth-context";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
@@ -64,14 +64,30 @@ type DashboardData = {
   }>;
 };
 
-// Cache for instant updates
-let cachedData: DashboardData | null = null;
+type Order = {
+  id: string;
+  status: 'OPEN' | 'CLOSED';
+  quantity: number;
+  buyPrice: number;
+  symbol: string;
+  type: string;
+  profitLoss: number;
+  tradeDate: string;
+};
+
+type OrdersResponse = {
+  orders: Order[];
+  totalProfitLoss: number;
+  closedPositionsProfitLoss: number;
+  openPositionsProfitLoss: number;
+};
 
 export default function DashboardPage() {
   const { userId } = useAuth();
   const router = useRouter();
-  const [dashboardData, setDashboardData] = useState<DashboardData | null>(cachedData);
-  const [isLoading, setIsLoading] = useState(!cachedData);
+  const cacheRef = useRef<DashboardData | null>(null);
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(cacheRef.current);
+  const [isLoading, setIsLoading] = useState(!cacheRef.current);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -86,7 +102,7 @@ export default function DashboardPage() {
   // Investment and trades data from API 
   const [totalInvestment, setTotalInvestment] = useState<number>(0);
   const [apiOpenTradesCount, setApiOpenTradesCount] = useState<number>(0);
-  const [apiOrders, setApiOrders] = useState<any[]>([]);
+  const [apiOrders, setApiOrders] = useState<Order[]>([]);
 
   // Optimistically merged data
   const displayData = useMemo(() => {
@@ -106,8 +122,8 @@ export default function DashboardPage() {
     return { 
       openTradesCount: apiOpenTradesCount, 
       openTradesInvestment: apiOrders
-        .filter(order => order.status === "OPEN")
-        .reduce((sum, order) => sum + (order.quantity * order.buyPrice), 0),
+        .filter((order: Order) => order.status === "OPEN")
+        .reduce((sum: number, order: Order) => sum + (order.quantity * order.buyPrice), 0),
       totalInvestmentsDone: totalInvestment
     };
   }, [apiOpenTradesCount, apiOrders, totalInvestment]);
@@ -127,7 +143,7 @@ export default function DashboardPage() {
       });
       
       if (response.ok) {
-        const data = await response.json();
+        const data = await response.json() as OrdersResponse;
         
         // Make sure we're using the same profit/loss values as the order history page
         console.log("[DASHBOARD] Using API-calculated profit/loss values:");
@@ -143,11 +159,11 @@ export default function DashboardPage() {
         setApiOrders(data.orders);
         
         // Calculate open trades count
-        const openOrders = data.orders.filter(order => order.status === "OPEN");
+        const openOrders = data.orders.filter((order: Order) => order.status === "OPEN");
         setApiOpenTradesCount(openOrders.length);
         
         // Calculate total investment
-        const investment = data.orders.reduce((sum, order) => 
+        const investment = data.orders.reduce((sum: number, order: Order) => 
           sum + (order.quantity * order.buyPrice), 0);
         setTotalInvestment(investment);
         
@@ -188,7 +204,8 @@ export default function DashboardPage() {
         console.log(`- Closed positions P/L: ${newData.closedPositionsProfitLoss}`);
         console.log(`- Open positions P/L: ${newData.openPositionsProfitLoss}`);
         
-        cachedData = newData;
+        // Update the cache
+        cacheRef.current = newData;
         setDashboardData(newData);
         setLastUpdated(new Date());
         setPendingUpdates({});
