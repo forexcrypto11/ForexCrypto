@@ -94,19 +94,25 @@ export default function DashboardPage() {
   const [pendingUpdates, setPendingUpdates] = useState<Partial<DashboardData>>({});
   
   // Optimized data fetching with SWR
-  const { data: dashboardData, error: dashboardError, mutate: mutateDashboard } = useSWR<DashboardData>(
+  const { data: dashboardData, error: dashboardError, mutate: mutateDashboard, isLoading: isDashboardLoading } = useSWR<DashboardData>(
     userId ? '/api/user/dashboard' : null,
     async () => {
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+        
         const res = await fetch(`/api/user/dashboard`, {
           headers: { 
             'X-User-Id': userId || '',
             'Cache-Control': 'no-cache'
           },
-          cache: 'no-store'
+          cache: 'no-store',
+          signal: controller.signal
         });
         
-        if (!res.ok) throw new Error('Failed to fetch dashboard data');
+        clearTimeout(timeoutId);
+        
+        if (!res.ok) throw new Error(`Failed to fetch dashboard data: ${res.status}`);
         const { dashboardData } = await res.json();
         return dashboardData;
       } catch (error) {
@@ -120,24 +126,33 @@ export default function DashboardPage() {
       revalidateOnFocus: false,
       revalidateOnMount: true,
       revalidateIfStale: true,
-      onSuccess: () => setLastUpdated(new Date())
+      onSuccess: () => setLastUpdated(new Date()),
+      errorRetryCount: 3,
+      errorRetryInterval: 5000,
+      shouldRetryOnError: true
     }
   );
   
   // Fetch orders data in parallel with dashboard data
-  const { data: ordersData, error: ordersError, mutate: mutateOrders } = useSWR<OrdersResponse>(
+  const { data: ordersData, error: ordersError, mutate: mutateOrders, isLoading: isOrdersLoading } = useSWR<OrdersResponse>(
     userId ? '/api/orders' : null,
     async () => {
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+        
         const response = await fetch('/api/orders', {
           headers: {
             'x-user-id': userId || '',
             'Cache-Control': 'no-cache'
           },
-          cache: 'no-store'
+          cache: 'no-store',
+          signal: controller.signal
         });
         
-        if (!response.ok) throw new Error('Failed to fetch orders data');
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) throw new Error(`Failed to fetch orders data: ${response.status}`);
         return response.json();
       } catch (error) {
         console.error("Failed to fetch profit/loss data:", error);
@@ -147,14 +162,17 @@ export default function DashboardPage() {
     {
       dedupingInterval: 10000, // 10 seconds
       focusThrottleInterval: 5000,
-      revalidateOnFocus: false
+      revalidateOnFocus: false,
+      errorRetryCount: 3,
+      errorRetryInterval: 5000,
+      shouldRetryOnError: true
     }
   );
   
   // Calculate frontend-derived values from API
-  const totalProfitLoss = ordersData?.totalProfitLoss || 0;
-  const openPositionsPL = ordersData?.openPositionsProfitLoss || 0;
-  const closedPositionsPL = ordersData?.closedPositionsProfitLoss || 0;
+  const ordersApiTotalProfitLoss = ordersData?.totalProfitLoss ?? 0;
+  const ordersApiOpenPositionsPL = ordersData?.openPositionsProfitLoss ?? 0;
+  const ordersApiClosedPositionsPL = ordersData?.closedPositionsProfitLoss ?? 0;
   
   // Derived values from orders data
   const apiOrders = ordersData?.orders || [];
@@ -171,11 +189,11 @@ export default function DashboardPage() {
       ...dashboardData, 
       ...pendingUpdates,
       // Override the backend profit/loss with our consistent calculation
-      totalProfitLoss,
-      openPositionsProfitLoss: openPositionsPL,
-      closedPositionsProfitLoss: closedPositionsPL,
+      totalProfitLoss: ordersApiTotalProfitLoss,
+      openPositionsProfitLoss: ordersApiOpenPositionsPL,
+      closedPositionsProfitLoss: ordersApiClosedPositionsPL,
     } : null;
-  }, [dashboardData, pendingUpdates, totalProfitLoss, openPositionsPL, closedPositionsPL]);
+  }, [dashboardData, pendingUpdates, ordersApiTotalProfitLoss, ordersApiOpenPositionsPL, ordersApiClosedPositionsPL]);
   
   // Handle refresh - mutate both data sources simultaneously
   const handleRefresh = useCallback(async () => {
@@ -253,7 +271,7 @@ export default function DashboardPage() {
     ? `Last updated: ${lastUpdated.toLocaleTimeString()}`
     : 'Updating...';
 
-  // Stats configuration
+  // Stats configuration - improved to never show "₹0" when loading
   const stats = useMemo(() => {
     const baseStats = [
       { 
@@ -261,31 +279,35 @@ export default function DashboardPage() {
         value: displayData ? `₹${((displayData.baseAccountBalance || 0) + 
                                (displayData.approvedLoanAmount || 0) - 
                                (displayData.totalOpenOrdersAmount || 0) + 
-                               (displayData.totalProfitLoss || 0)).toLocaleString()}` : "₹0", 
+                               (displayData.totalProfitLoss || 0)).toLocaleString()}` : "Loading...", 
         color: "text-green-400",
         icon: <IndianRupee className="h-5 w-5 text-primary" />,
-        tooltip: "Base Balance + Loan - Open Orders + Profit/Loss"
+        tooltip: "Base Balance + Loan - Open Orders + Profit/Loss",
+        isLoading: !displayData
       },
       { 
         title: "Total Deposits", 
-        value: displayData ? `₹${(displayData.totalDeposits || 0).toLocaleString()}` : "₹0", 
+        value: displayData ? `₹${(displayData.totalDeposits || 0).toLocaleString()}` : "Loading...", 
         color: "text-green-400",
-        icon: <TrendingUp className="h-5 w-5 text-primary" />
+        icon: <TrendingUp className="h-5 w-5 text-primary" />,
+        isLoading: !displayData
       },
       { 
         title: "Total Withdrawals", 
-        value: displayData ? `₹${(displayData.totalWithdrawals || 0).toLocaleString()}` : "₹0", 
+        value: displayData ? `₹${(displayData.totalWithdrawals || 0).toLocaleString()}` : "Loading...", 
         color: "text-green-400",
-        icon: <ArrowUpRight className="h-5 w-5 text-primary" />
+        icon: <ArrowUpRight className="h-5 w-5 text-primary" />,
+        isLoading: !displayData
       },
       { 
         title: "Profit/Loss", 
-        value: displayData ? `₹${(displayData.totalProfitLoss || 0).toLocaleString()}` : "₹0", 
+        value: displayData ? `₹${(displayData.totalProfitLoss || 0).toLocaleString()}` : "Loading...", 
         change: profitLossPercentage,
         color: profitLoss >= 0 ? "text-green-400" : "text-red-400",
         icon: profitLoss >= 0 ? 
           <TrendingUp className="h-5 w-5 text-primary" /> : 
-          <TrendingDown className="h-5 w-5 text-primary" />
+          <TrendingDown className="h-5 w-5 text-primary" />,
+        isLoading: !displayData
       }
     ];
 
@@ -294,7 +316,8 @@ export default function DashboardPage() {
         title: "Approved Loan", 
         value: `₹${(displayData.approvedLoanAmount || 0).toLocaleString()}`, 
         color: "text-blue-400",
-        icon: <Coins className="h-5 w-5 text-primary" />
+        icon: <Coins className="h-5 w-5 text-primary" />,
+        isLoading: !displayData
       });
     }
 
@@ -304,7 +327,8 @@ export default function DashboardPage() {
         value: `₹${(openTradesInvestment || 0).toLocaleString()}`, 
         color: "text-blue-400",
         icon: <Briefcase className="h-5 w-5 text-primary" />,
-        tooltip: `${apiOpenTradesCount || 0} open trades`
+        tooltip: `${apiOpenTradesCount || 0} open trades`,
+        isLoading: !displayData
       });
     }
 
@@ -312,7 +336,7 @@ export default function DashboardPage() {
   }, [displayData, profitLoss, profitLossPercentage, apiOpenTradesCount, openTradesInvestment]);
 
   // Loading states and error handling
-  const isLoading = !dashboardData && !dashboardError && !ordersData && !ordersError;
+  const isLoading = (isDashboardLoading || isOrdersLoading) && !dashboardError && !ordersError;
   const hasError = dashboardError || ordersError;
 
   // Skeleton loading UI component for a faster perceived loading experience
@@ -342,10 +366,16 @@ export default function DashboardPage() {
   }
 
   if (hasError) {
+    // Log the errors for better debugging
+    console.error("Dashboard error:", dashboardError);
+    console.error("Orders error:", ordersError);
+    
+    // More descriptive error UI
     return (
-      <div className="flex justify-center items-center h-[60vh]">
+      <div className="flex justify-center items-center h-[60vh] flex-col">
         <div className="text-center">
-          <p className="text-muted-foreground">Failed to load dashboard data</p>
+          <h3 className="text-xl font-semibold mb-2">Connection Issue</h3>
+          <p className="text-muted-foreground mb-6">We're having trouble loading your dashboard data. This might be due to network issues or high server load.</p>
           <Button 
             variant="outline" 
             className="mt-4"
@@ -355,6 +385,10 @@ export default function DashboardPage() {
             Try Again
           </Button>
         </div>
+        
+        {dashboardError instanceof Error && dashboardError.name === 'AbortError' && (
+          <p className="text-amber-500 mt-4 text-sm">The request timed out. The server might be experiencing high load.</p>
+        )}
       </div>
     );
   }
@@ -436,9 +470,15 @@ export default function DashboardPage() {
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground">{stat.title}</h3>
                 <div className="mt-2 flex items-baseline gap-2">
-                  <p className="text-2xl font-semibold">{stat.value}</p>
-                  {stat.change && (
-                    <span className={`text-sm ${stat.color}`}>{stat.change}</span>
+                  {stat.isLoading ? (
+                    <div className="h-8 w-24 bg-muted animate-pulse rounded-md"></div>
+                  ) : (
+                    <>
+                      <p className="text-2xl font-semibold">{stat.value}</p>
+                      {stat.change && (
+                        <span className={`text-sm ${stat.color}`}>{stat.change}</span>
+                      )}
+                    </>
                   )}
                 </div>
                 {stat.tooltip && (
@@ -520,13 +560,13 @@ export default function DashboardPage() {
                 <div>
                   <p className="text-sm text-muted-foreground">Closed Positions P&L</p>
                   <p className={`text-2xl font-semibold mt-2 ${
-                    closedPositionsPL >= 0 ? 'text-green-400' : 'text-red-400'
+                    ordersApiClosedPositionsPL >= 0 ? 'text-green-400' : 'text-red-400'
                   }`}>
-                    ₹{Math.abs(closedPositionsPL).toLocaleString()}
+                    ₹{Math.abs(ordersApiClosedPositionsPL).toLocaleString()}
                   </p>
                 </div>
                 <div className="p-2 rounded-lg bg-primary/10">
-                  {closedPositionsPL >= 0 ? (
+                  {ordersApiClosedPositionsPL >= 0 ? (
                     <ArrowUpRight className="h-6 w-6 text-green-400" />
                   ) : (
                     <ArrowDownRight className="h-6 w-6 text-red-400" />
@@ -665,8 +705,8 @@ export default function DashboardPage() {
                       </span>
                     </div>
                     <div className="flex flex-col pl-5 text-xs text-muted-foreground">
-                      <span>Closed positions: {(closedPositionsPL || 0) >= 0 ? '+' : '-'}₹{Math.abs(closedPositionsPL || 0).toLocaleString()}</span>
-                      <span>Open positions: {(openPositionsPL || 0) >= 0 ? '+' : '-'}₹{Math.abs(openPositionsPL || 0).toLocaleString()}</span>
+                      <span>Closed positions: {(ordersApiClosedPositionsPL || 0) >= 0 ? '+' : '-'}₹{Math.abs(ordersApiClosedPositionsPL || 0).toLocaleString()}</span>
+                      <span>Open positions: {(ordersApiOpenPositionsPL || 0) >= 0 ? '+' : '-'}₹{Math.abs(ordersApiOpenPositionsPL || 0).toLocaleString()}</span>
                     </div>
                   </div>
                 )}

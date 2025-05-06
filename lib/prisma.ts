@@ -18,13 +18,40 @@ const prismaClientSingleton = () => {
 
   // Add custom middleware for better connection handling in serverless
   client.$use(async (params, next) => {
+    const startTime = Date.now();
+    
     try {
-      return await next(params);
+      // Create a promise that will timeout after 12 seconds
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => {
+          reject(new Error(`Query timeout: ${params.model}.${params.action} exceeded 12 seconds`));
+        }, 12000);
+      });
+      
+      // Race between the actual query and the timeout
+      const result = await Promise.race([
+        next(params),
+        timeoutPromise
+      ]);
+      
+      const duration = Date.now() - startTime;
+      
+      // Log slow queries in production
+      if (duration > 5000) {
+        console.warn(`Slow query detected (${duration}ms): ${params.model}.${params.action}`);
+      }
+      
+      return result;
     } catch (error) {
       // Log connection errors in development
       if (process.env.NODE_ENV !== "production") {
         console.error(`Prisma Query Error (${params.model}.${params.action}):`, error);
+      } else {
+        // In production, log basic error information without sensitive details
+        console.error(`Database error in ${params.model}.${params.action}: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
+      
+      // Rethrow for handling in the API route
       throw error;
     }
   });

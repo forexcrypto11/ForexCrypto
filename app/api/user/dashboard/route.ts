@@ -1,14 +1,16 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { withTimeoutHandler } from '@/app/api/utils/timeout-wrapper';
 
-export async function GET(request: Request) {
+export const GET = async (request: Request) => {
     const userId = request.headers.get('X-User-Id');
 
     if (!userId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    try {
+    // Use our wrapper to handle timeouts consistently
+    return withTimeoutHandler(async () => {
         // Fetch all data in parallel for better performance
         const [
             user,
@@ -137,32 +139,21 @@ export async function GET(request: Request) {
         const baseAccountBalance = (totalDeposits._sum.amount || 0) - (totalWithdrawals._sum.amount || 0);
         const approvedLoanAmount = approvedLoan?._sum?.amount ?? 0;
         const totalOrdersAmount = verifiedOrdersAmount?._sum?.tradeAmount ?? 0;
-          
-        // Log details of each closed position
-        closedPositions.forEach(position => {
-    });
         
         const closedPositionsProfitLoss = closedPositions.reduce((sum, position) => {
             return sum + (position.profitLoss || 0);
         }, 0);
         
-        
-        // Log details of each open position
-        openPositions.forEach(position => {
-        });
-        
         const openPositionsProfitLoss = openPositions.reduce((sum, position) => {
             return sum + (position.profitLoss || 0);
         }, 0);
         
-            
         const totalProfitLoss = closedPositionsProfitLoss + openPositionsProfitLoss;
 
         // Calculate additional values for the response
         const totalOpenOrdersAmount = openPositions.reduce((sum, pos) => sum + (pos.tradeAmount || 0), 0);
         const totalClosedOrdersAmount = closedPositions.reduce((sum, pos) => sum + (pos.tradeAmount || 0), 0);
         
-       
         return NextResponse.json({
             dashboardData: {
                 accountBalance: baseAccountBalance + approvedLoanAmount - totalOpenOrdersAmount + totalProfitLoss,
@@ -184,11 +175,5 @@ export async function GET(request: Request) {
                 approvedLoanDetails: approvedLoan
             }
         });
-    } catch (error) {
-        console.error('Dashboard fetch error:', error);
-        return NextResponse.json(
-            { error: 'Failed to fetch dashboard data' },
-            { status: 500 }
-        );
-    }
+    }, 15000)(); // 15 second timeout and immediately invoke
 } 

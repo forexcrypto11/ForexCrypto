@@ -1,20 +1,21 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { headers } from "next/headers";
+import { withTimeoutHandler } from '@/app/api/utils/timeout-wrapper';
 
-export async function GET() {
-  try {
-    const headersList = headers();
-    const userId = headersList.get("x-user-id");
+export const GET = async () => {
+  const headersList = headers();
+  const userId = headersList.get("x-user-id");
 
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: "User ID not provided" },
-        { status: 401 }
-      );
-    }
+  if (!userId) {
+    return NextResponse.json(
+      { success: false, error: "User ID not provided" },
+      { status: 401 }
+    );
+  }
 
-  
+  // Use our wrapper to handle timeouts consistently
+  return withTimeoutHandler(async () => {
     const orders = await prisma.orderHistory.findMany({
       where: {
         userId: userId
@@ -33,7 +34,6 @@ export async function GET() {
         return sum + orderPL;
       }, 0);
     
-
     const openOrders = orders.filter(order => order.status === "OPEN");
   
     const openPositionsProfitLoss = openOrders
@@ -42,7 +42,6 @@ export async function GET() {
         return sum + orderPL;
       }, 0);
     
-   
     const totalProfitLoss = closedPositionsProfitLoss + openPositionsProfitLoss;
    
     return NextResponse.json({ 
@@ -52,11 +51,5 @@ export async function GET() {
       closedPositionsProfitLoss,
       openPositionsProfitLoss
     });
-  } catch (error) {
-    console.error("Error fetching orders:", error);
-    return NextResponse.json(
-      { success: false, error: "Failed to fetch orders" },
-      { status: 500 }
-    );
-  }
+  }, 15000)(); // 15 second timeout and immediately invoke
 }
