@@ -39,7 +39,7 @@ export default function UserDetails() {
   useEffect(() => {
     const fetchUserDetails = async () => {
       try {
-        const response = await fetch(`/api/admin/users/${params.userId}`);
+        const response = await fetch(`/api/admin/users/${params?.userId}`);
         const data = await response.json();
         if (data.success) {
           setUser(data.user);
@@ -53,10 +53,10 @@ export default function UserDetails() {
       }
     };
 
-    if (params.userId) {
+    if (params?.userId) {
       fetchUserDetails();
     }
-  }, [params.userId]);
+  }, [params?.userId]);
 
   if (isLoading) {
     return <div className="flex items-center justify-center h-screen">Loading...</div>;

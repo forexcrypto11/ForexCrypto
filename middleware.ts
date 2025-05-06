@@ -18,9 +18,31 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
+  // Socket.IO needs CORS handling
+  if (request.nextUrl.pathname.startsWith('/api/socket') || 
+      request.nextUrl.pathname.startsWith('/api/socket-io')) {
+    const response = NextResponse.next();
+    response.headers.set('Access-Control-Allow-Origin', '*');
+    response.headers.set('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+    response.headers.set(
+      'Access-Control-Allow-Headers',
+      'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
+    );
+    
+    // Handle OPTIONS request
+    if (request.method === 'OPTIONS') {
+      return new NextResponse(null, { 
+        status: 200,
+        headers: response.headers
+      });
+    }
+    
+    return response;
+  }
+
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/admin/:path*', '/login', '/signup']
+  matcher: ['/dashboard/:path*', '/admin/:path*', '/login', '/signup', '/api/socket/:path*', '/api/socket-io/:path*']
 }; 

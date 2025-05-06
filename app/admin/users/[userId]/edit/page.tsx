@@ -16,7 +16,7 @@ export default function EditUser() {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const response = await fetch(`/api/admin/users/${params.userId}`);
+        const response = await fetch(`/api/admin/users/${params?.userId}`);
         const data = await response.json();
         setUser(data);
       } catch (error) {
@@ -26,10 +26,10 @@ export default function EditUser() {
       }
     };
 
-    if (params.userId) {
+    if (params?.userId) {
       fetchUser();
     }
-  }, [params.userId]);
+  }, [params?.userId]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -50,7 +50,7 @@ export default function EditUser() {
         nomineeRelation: formData.get('nomineeRelation'),
       };
 
-      const response = await fetch(`/api/admin/users/${params.userId}`, {
+      const response = await fetch(`/api/admin/users/${params?.userId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -59,7 +59,7 @@ export default function EditUser() {
       });
 
       if (response.ok) {
-        router.push(`/admin/users/${params.userId}`);
+        router.push(`/admin/users/${params?.userId}`);
       }
     } catch (error) {
       console.error('Error updating user:', error);
@@ -75,7 +75,7 @@ export default function EditUser() {
   return (
     <div className="p-6 space-y-8">
       <div className="flex items-center gap-4">
-        <Link href={`/admin/users/${params.userId}`} className="hover:opacity-80">
+        <Link href={`/admin/users/${params?.userId}`} className="hover:opacity-80">
           <ArrowLeft className="h-6 w-6" />
         </Link>
         <h1 className="text-3xl font-bold">Edit User</h1>
@@ -203,7 +203,7 @@ export default function EditUser() {
         </div>
 
         <div className="flex justify-end gap-4">
-          <Link href={`/admin/users/${params.userId}`}>
+          <Link href={`/admin/users/${params?.userId}`}>
             <button
               type="button"
               className="px-4 py-2 rounded-md border hover:bg-accent/80 transition-colors"

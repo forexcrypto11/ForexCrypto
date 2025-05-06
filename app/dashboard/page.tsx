@@ -375,7 +375,7 @@ export default function DashboardPage() {
       <div className="flex justify-center items-center h-[60vh] flex-col">
         <div className="text-center">
           <h3 className="text-xl font-semibold mb-2">Connection Issue</h3>
-          <p className="text-muted-foreground mb-6">We're having trouble loading your dashboard data. This might be due to network issues or high server load.</p>
+          <p className="text-muted-foreground mb-6">We&apos;re having trouble loading your dashboard data. This might be due to network issues or high server load.</p>
           <Button 
             variant="outline" 
             className="mt-4"
@@ -474,9 +474,9 @@ export default function DashboardPage() {
                     <div className="h-8 w-24 bg-muted animate-pulse rounded-md"></div>
                   ) : (
                     <>
-                      <p className="text-2xl font-semibold">{stat.value}</p>
-                      {stat.change && (
-                        <span className={`text-sm ${stat.color}`}>{stat.change}</span>
+                  <p className="text-2xl font-semibold">{stat.value}</p>
+                  {stat.change && (
+                    <span className={`text-sm ${stat.color}`}>{stat.change}</span>
                       )}
                     </>
                   )}
