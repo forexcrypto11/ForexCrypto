@@ -15,7 +15,6 @@ async function main() {
         isActive: true,
       }
     });
-    console.log('Default UPI payment info created');
   }
 }
 

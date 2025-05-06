@@ -11,9 +11,7 @@ if (!poolerConnectionString) {
 }
 
 async function testConnection(connectionString, label) {
-  console.log(`\nAttempting to connect to database using ${label}...`);
-  console.log(`Connection string: ${connectionString.replace(/:[^:]*@/, ':***@')}`);
-  
+ 
   const client = new Client({
     connectionString,
     ssl: {
@@ -24,26 +22,17 @@ async function testConnection(connectionString, label) {
 
   try {
     await client.connect();
-    console.log(`✅ Successfully connected to database using ${label}!`);
     
     // Test a simple query
     const res = await client.query('SELECT NOW() as current_time');
-    console.log(`Current database time: ${res.rows[0].current_time}`);
     
     await client.end();
     return true;
   } catch (err) {
-    console.error(`❌ Failed to connect to database using ${label}:`, err.message);
     
     // Additional connection diagnostics
     try {
-      console.log('\nTrying to diagnose the issue:');
       const dbUrl = new URL(connectionString);
-      console.log(`Host: ${dbUrl.hostname}`);
-      console.log(`Port: ${dbUrl.port}`);
-      console.log(`Database: ${dbUrl.pathname.substring(1)}`);
-      console.log(`Username: ${dbUrl.username}`);
-      console.log(`SSL Mode: ${dbUrl.searchParams.get('sslmode') || 'Not specified'}`);
     } catch (parseErr) {
       console.error('Could not parse connection URL:', parseErr.message);
     }
@@ -58,7 +47,6 @@ async function runTests() {
   
   // If Pooler fails, try the direct connection
   if (!poolerResult && directConnectionString) {
-    console.log('\n--- Pooler connection failed, trying direct connection ---');
     await testConnection(directConnectionString, 'Direct Connection');
   }
   

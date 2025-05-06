@@ -14,7 +14,7 @@ export async function GET() {
       );
     }
 
-    console.log("[API:ORDERS] Fetching orders for user:", userId);
+  
     const orders = await prisma.orderHistory.findMany({
       where: {
         userId: userId
@@ -24,36 +24,27 @@ export async function GET() {
       }
     });
     
-    console.log(`[API:ORDERS] Found ${orders.length} orders`);
-    
     // Calculate profit/loss from both closed and open positions (matching dashboard calculation)
     const closedOrders = orders.filter(order => order.status === "CLOSED");
-    console.log(`[API:ORDERS] Closed orders: ${closedOrders.length}`);
     
     const closedPositionsProfitLoss = closedOrders
       .reduce((sum, order) => {
         const orderPL = order.profitLoss || 0;
-        console.log(`[API:ORDERS] Closed order ${order.id}: PL = ${orderPL}`);
         return sum + orderPL;
       }, 0);
     
-    console.log(`[API:ORDERS] Total closed positions P/L: ${closedPositionsProfitLoss}`);
-    
+
     const openOrders = orders.filter(order => order.status === "OPEN");
-    console.log(`[API:ORDERS] Open orders: ${openOrders.length}`);
-    
+  
     const openPositionsProfitLoss = openOrders
       .reduce((sum, order) => {
         const orderPL = order.profitLoss || 0;
-        console.log(`[API:ORDERS] Open order ${order.id}: PL = ${orderPL}`);
         return sum + orderPL;
       }, 0);
     
-    console.log(`[API:ORDERS] Total open positions P/L: ${openPositionsProfitLoss}`);
-    
+   
     const totalProfitLoss = closedPositionsProfitLoss + openPositionsProfitLoss;
-    console.log(`[API:ORDERS] Total P/L (closed + open): ${totalProfitLoss}`);
-    
+   
     return NextResponse.json({ 
       success: true,
       orders,

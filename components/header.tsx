@@ -26,7 +26,6 @@ export function Header() {
     setIsLoggingOut(true);
     try {
       await logout();
-      console.log("loggedout")
       router.push('/login');
     } finally {
       setIsLoggingOut(false);

@@ -56,7 +56,6 @@ const SignupForm = () => {
 
       if (response.ok) {
         const data = await response.json();
-        console.log('Signup successful:', data);
         router.push('/pending-approval');
       } else {
         const errorData = await response.json();

@@ -55,8 +55,6 @@ export default function OrdersHistoryPage() {
   const fetchOrders = async () => {
     try {
       setLoading(true);
-      console.log("[ORDER-HISTORY] Fetching orders data...");
-      
       const response = await fetch('/api/orders', {
         headers: {
           'x-user-id': user?.id || ''
@@ -71,9 +69,6 @@ export default function OrdersHistoryPage() {
       setOrders(data.orders);
       
       // Use the profit/loss values from the API response
-      console.log("[ORDER-HISTORY] API returned total P/L:", data.totalProfitLoss);
-      console.log("[ORDER-HISTORY] API returned closed positions P/L:", data.closedPositionsProfitLoss);
-      console.log("[ORDER-HISTORY] API returned open positions P/L:", data.openPositionsProfitLoss);
       
       setTotalProfitLoss(data.totalProfitLoss);
       setClosedPositionsPL(data.closedPositionsProfitLoss);
