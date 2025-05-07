@@ -87,7 +87,6 @@ export default function DashboardPage() {
   const { userId } = useAuth();
   const router = useRouter();
   
-  // Using SWR for data fetching with caching
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -99,14 +98,14 @@ export default function DashboardPage() {
     async () => {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+        const timeoutId = setTimeout(() => controller.abort(), 8000); // Reduced timeout to 8 seconds
         
         const res = await fetch(`/api/user/dashboard`, {
           headers: { 
             'X-User-Id': userId || '',
             'Cache-Control': 'no-cache'
           },
-          cache: 'no-store',
+          next: { revalidate: 30 }, // Enable Next.js ISR caching
           signal: controller.signal
         });
         
@@ -129,7 +128,8 @@ export default function DashboardPage() {
       onSuccess: () => setLastUpdated(new Date()),
       errorRetryCount: 3,
       errorRetryInterval: 5000,
-      shouldRetryOnError: true
+      shouldRetryOnError: true,
+      keepPreviousData: true // Keep showing previous data while loading new data
     }
   );
   
@@ -139,14 +139,14 @@ export default function DashboardPage() {
     async () => {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+        const timeoutId = setTimeout(() => controller.abort(), 8000); // Reduced timeout to 8 seconds
         
         const response = await fetch('/api/orders', {
           headers: {
             'x-user-id': userId || '',
             'Cache-Control': 'no-cache'
           },
-          cache: 'no-store',
+          next: { revalidate: 30 }, // Enable Next.js ISR caching
           signal: controller.signal
         });
         
@@ -165,7 +165,8 @@ export default function DashboardPage() {
       revalidateOnFocus: false,
       errorRetryCount: 3,
       errorRetryInterval: 5000,
-      shouldRetryOnError: true
+      shouldRetryOnError: true,
+      keepPreviousData: true // Keep showing previous data while loading new data
     }
   );
   
@@ -203,19 +204,13 @@ export default function DashboardPage() {
         mutateDashboard(),
         mutateOrders()
       ]);
-      
-      toast({
-        title: "Dashboard Updated",
-        description: "Latest data has been loaded.",
-        duration: 3000,
-      });
+      setLastUpdated(new Date());
     } catch (error) {
-      console.error("Error refreshing data:", error);
+      console.error('Refresh failed:', error);
       toast({
-        title: "Update Failed",
-        description: "Could not refresh dashboard data.",
-        variant: "destructive",
-        duration: 3000,
+        title: "Refresh Failed",
+        description: "Failed to refresh dashboard data. Please try again.",
+        variant: "destructive"
       });
     } finally {
       setIsRefreshing(false);
@@ -339,56 +334,23 @@ export default function DashboardPage() {
   const isLoading = (isDashboardLoading || isOrdersLoading) && !dashboardError && !ordersError;
   const hasError = dashboardError || ordersError;
 
-  // Skeleton loading UI component for a faster perceived loading experience
-  if (isLoading) {
+  // Show loading state
+  if (isDashboardLoading && !dashboardData) {
     return (
-      <div className="space-y-6 p-4 md:p-6 -mt-4">
-        <div className="flex justify-between items-center">
-          <div className="space-y-2">
-            <div className="h-8 w-64 bg-muted animate-pulse rounded-md"></div>
-            <div className="h-4 w-32 bg-muted animate-pulse rounded-md"></div>
-          </div>
-          <div className="flex gap-2">
-            <div className="h-10 w-24 bg-muted animate-pulse rounded-md"></div>
-            <div className="h-10 w-24 bg-muted animate-pulse rounded-md"></div>
-          </div>
-        </div>
-        
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="bg-muted h-32 animate-pulse rounded-xl"></div>
-          ))}
-        </div>
-        
-        <div className="bg-muted h-96 animate-pulse rounded-xl"></div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
       </div>
     );
   }
 
-  if (hasError) {
-    // Log the errors for better debugging
-    console.error("Dashboard error:", dashboardError);
-    console.error("Orders error:", ordersError);
-    
-    // More descriptive error UI
+  // Show error state
+  if (dashboardError && !dashboardData) {
     return (
-      <div className="flex justify-center items-center h-[60vh] flex-col">
-        <div className="text-center">
-          <h3 className="text-xl font-semibold mb-2">Connection Issue</h3>
-          <p className="text-muted-foreground mb-6">We&apos;re having trouble loading your dashboard data. This might be due to network issues or high server load.</p>
-          <Button 
-            variant="outline" 
-            className="mt-4"
-            onClick={handleRefresh}
-          >
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Try Again
-          </Button>
-        </div>
-        
-        {dashboardError instanceof Error && dashboardError.name === 'AbortError' && (
-          <p className="text-amber-500 mt-4 text-sm">The request timed out. The server might be experiencing high load.</p>
-        )}
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <AlertCircle className="h-16 w-16 text-red-500 mb-4" />
+        <h2 className="text-2xl font-bold mb-2">Failed to Load Dashboard</h2>
+        <p className="text-gray-600 mb-4">Please try refreshing the page</p>
+        <Button onClick={() => handleRefresh()}>Retry</Button>
       </div>
     );
   }

@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { withTimeoutHandler } from '@/app/api/utils/timeout-wrapper';
+import { headers } from 'next/headers';
+
+// Cache duration in seconds
+const CACHE_DURATION = 30;
 
 export const GET = async (request: Request) => {
     const userId = request.headers.get('X-User-Id');
@@ -14,86 +18,35 @@ export const GET = async (request: Request) => {
         // Fetch all data in parallel for better performance
         const [
             user,
-            totalDeposits,
-            totalWithdrawals,
-            recentTransactions,
-            openPositions,
-            closedPositions,
-            approvedLoan,
-            verifiedOrdersAmount,
-            totalVolumeData,
-            totalTradesCount
+            transactions,
+            orders,
+            approvedLoan
         ] = await Promise.all([
             prisma.user.findUnique({
-                where: { id: userId }
-            }),
-            prisma.transaction.aggregate({
-                where: {
-                    userId,
-                    type: 'DEPOSIT',
-                    status: 'COMPLETED',
-                    verified: true
-                },
-                _sum: { amount: true }
-            }),
-            prisma.transaction.aggregate({
-                where: {
-                    userId,
-                    type: 'WITHDRAW',
-                    status: 'COMPLETED'
-                },
-                _sum: { amount: true }
+                where: { id: userId },
+                select: {
+                    id: true,
+                    status: true
+                }
             }),
             prisma.transaction.findMany({
-                where: { 
+                where: {
                     userId,
                     OR: [
-                        { 
-                            type: 'WITHDRAW',
-                            status: 'COMPLETED'
-                        },
-                        { 
-                            type: 'DEPOSIT',
-                            status: 'COMPLETED',
-                            verified: true
-                        }
+                        { type: 'DEPOSIT', status: 'COMPLETED', verified: true },
+                        { type: 'WITHDRAW', status: 'COMPLETED' }
                     ]
                 },
-                orderBy: { timestamp: 'desc' },
-                take: 5,
                 select: {
-                    id: true,
                     type: true,
                     amount: true,
-                    timestamp: true,
                     status: true,
-                    verified: true
+                    verified: true,
+                    timestamp: true
                 }
             }),
             prisma.orderHistory.findMany({
-                where: { 
-                    userId,
-                    status: 'OPEN'
-                },
-                orderBy: { tradeDate: 'desc' },
-                select: {
-                    id: true,
-                    symbol: true,
-                    type: true,
-                    profitLoss: true,
-                    tradeDate: true,
-                    quantity: true,
-                    buyPrice: true,
-                    tradeAmount: true
-                }
-            }),
-            prisma.orderHistory.findMany({
-                where: { 
-                    userId,
-                    status: 'CLOSED'
-                },
-                orderBy: { tradeDate: 'desc' },
-                take: 5,
+                where: { userId },
                 select: {
                     id: true,
                     symbol: true,
@@ -103,77 +56,99 @@ export const GET = async (request: Request) => {
                     quantity: true,
                     buyPrice: true,
                     sellPrice: true,
+                    status: true,
                     tradeAmount: true
                 }
             }),
-            prisma.loanRequest.aggregate({
+            prisma.loanRequest.findFirst({
                 where: {
                     userId,
                     status: 'APPROVED'
                 },
-                orderBy: {
-                    updatedAt: 'desc'
-                },
-                _sum: { amount: true }
-            }),
-            prisma.orderHistory.aggregate({
-                where: {
-                    userId,
-                    OR: [
-                        { status: 'OPEN' },
-                        { status: 'CLOSED' }
-                    ]
-                },
-                _sum: { tradeAmount: true }
-            }),
-            prisma.orderHistory.aggregate({
-                where: { userId },
-                _sum: { tradeAmount: true }
-            }),
-            prisma.orderHistory.count({
-                where: { userId }
+                select: {
+                    amount: true,
+                    duration: true,
+                    updatedAt: true
+                }
             })
         ]);
 
-        // Calculate values
-        const baseAccountBalance = (totalDeposits._sum.amount || 0) - (totalWithdrawals._sum.amount || 0);
-        const approvedLoanAmount = approvedLoan?._sum?.amount ?? 0;
-        const totalOrdersAmount = verifiedOrdersAmount?._sum?.tradeAmount ?? 0;
-        
-        const closedPositionsProfitLoss = closedPositions.reduce((sum, position) => {
-            return sum + (position.profitLoss || 0);
-        }, 0);
-        
-        const openPositionsProfitLoss = openPositions.reduce((sum, position) => {
-            return sum + (position.profitLoss || 0);
-        }, 0);
-        
-        const totalProfitLoss = closedPositionsProfitLoss + openPositionsProfitLoss;
+        // Process transactions
+        const totalDeposits = transactions
+            .filter(tx => tx.type === 'DEPOSIT')
+            .reduce((sum, tx) => sum + tx.amount, 0);
+            
+        const totalWithdrawals = transactions
+            .filter(tx => tx.type === 'WITHDRAW')
+            .reduce((sum, tx) => sum + tx.amount, 0);
 
-        // Calculate additional values for the response
+        // Process orders
+        const openPositions = orders.filter(order => order.status === 'OPEN');
+        const closedPositions = orders.filter(order => order.status === 'CLOSED');
+        
+        const openPositionsProfitLoss = openPositions.reduce((sum, pos) => sum + (pos.profitLoss || 0), 0);
+        const closedPositionsProfitLoss = closedPositions.reduce((sum, pos) => sum + (pos.profitLoss || 0), 0);
+        const totalProfitLoss = openPositionsProfitLoss + closedPositionsProfitLoss;
+
         const totalOpenOrdersAmount = openPositions.reduce((sum, pos) => sum + (pos.tradeAmount || 0), 0);
         const totalClosedOrdersAmount = closedPositions.reduce((sum, pos) => sum + (pos.tradeAmount || 0), 0);
+        const totalOrdersAmount = totalOpenOrdersAmount + totalClosedOrdersAmount;
+
+        const baseAccountBalance = totalDeposits - totalWithdrawals;
+        const approvedLoanAmount = approvedLoan?.amount || 0;
+
+        const dashboardData = {
+            accountBalance: baseAccountBalance + approvedLoanAmount - totalOpenOrdersAmount + totalProfitLoss,
+            baseAccountBalance,
+            totalDeposits,
+            totalWithdrawals,
+            openPositionsProfitLoss,
+            closedPositionsProfitLoss,
+            totalProfitLoss,
+            totalTrades: orders.length,
+            totalVolume: orders.reduce((sum, order) => sum + (order.tradeAmount || 0), 0),
+            approvedLoanAmount,
+            totalOrdersAmount,
+            recentTransactions: transactions
+                .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+                .slice(0, 5)
+                .map(tx => ({
+                    id: tx.id,
+                    type: tx.type,
+                    amount: tx.amount,
+                    timestamp: tx.timestamp,
+                    status: tx.status,
+                    verified: tx.verified
+                })),
+            openPositions: openPositions.map(order => ({
+                id: order.id,
+                symbol: order.symbol,
+                type: order.type,
+                profitLoss: order.profitLoss,
+                tradeDate: order.tradeDate,
+                quantity: order.quantity,
+                buyPrice: order.buyPrice
+            })),
+            closedPositions: closedPositions.slice(0, 5).map(order => ({
+                id: order.id,
+                symbol: order.symbol,
+                type: order.type,
+                profitLoss: order.profitLoss,
+                tradeDate: order.tradeDate,
+                quantity: order.quantity,
+                buyPrice: order.buyPrice,
+                sellPrice: order.sellPrice
+            })),
+            totalOpenOrdersAmount,
+            totalClosedOrdersAmount,
+            approvedLoanDetails: approvedLoan
+        };
+
+        const response = NextResponse.json({ dashboardData });
         
-        return NextResponse.json({
-            dashboardData: {
-                accountBalance: baseAccountBalance + approvedLoanAmount - totalOpenOrdersAmount + totalProfitLoss,
-                baseAccountBalance,
-                totalDeposits: totalDeposits._sum.amount || 0,
-                totalWithdrawals: totalWithdrawals._sum.amount || 0,
-                openPositionsProfitLoss,
-                closedPositionsProfitLoss,
-                totalProfitLoss,
-                totalTrades: totalTradesCount,
-                totalVolume: totalVolumeData._sum.tradeAmount || 0,
-                approvedLoanAmount,
-                totalOrdersAmount,
-                recentTransactions,
-                openPositions,
-                closedPositions,
-                totalOpenOrdersAmount,
-                totalClosedOrdersAmount,
-                approvedLoanDetails: approvedLoan
-            }
-        });
-    }, 15000)(); // 15 second timeout and immediately invoke
-} 
+        // Add cache control headers
+        response.headers.set('Cache-Control', `public, s-maxage=${CACHE_DURATION}, stale-while-revalidate=${CACHE_DURATION * 2}`);
+        
+        return response;
+    }, 10000)(); // Reduced timeout to 10 seconds
+}; 
