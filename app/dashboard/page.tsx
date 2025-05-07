@@ -91,6 +91,7 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState("overview");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [pendingUpdates, setPendingUpdates] = useState<Partial<DashboardData>>({});
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
   
   // Optimized data fetching with SWR
   const { data: dashboardData, error: dashboardError, mutate: mutateDashboard, isLoading: isDashboardLoading } = useSWR<DashboardData>(
@@ -98,14 +99,14 @@ export default function DashboardPage() {
     async () => {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000); // Reduced timeout to 8 seconds
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
         
         const res = await fetch(`/api/user/dashboard`, {
           headers: { 
             'X-User-Id': userId || '',
             'Cache-Control': 'no-cache'
           },
-          next: { revalidate: 30 }, // Enable Next.js ISR caching
+          next: { revalidate: 30 },
           signal: controller.signal
         });
         
@@ -120,16 +121,19 @@ export default function DashboardPage() {
       }
     },
     {
-      dedupingInterval: 10000, // 10 seconds
+      dedupingInterval: 10000,
       focusThrottleInterval: 5000,
       revalidateOnFocus: false,
       revalidateOnMount: true,
       revalidateIfStale: true,
-      onSuccess: () => setLastUpdated(new Date()),
+      onSuccess: () => {
+        setLastUpdated(new Date());
+        setIsInitialLoad(false);
+      },
       errorRetryCount: 3,
       errorRetryInterval: 5000,
       shouldRetryOnError: true,
-      keepPreviousData: true // Keep showing previous data while loading new data
+      keepPreviousData: true
     }
   );
   
@@ -333,6 +337,15 @@ export default function DashboardPage() {
   // Loading states and error handling
   const isLoading = (isDashboardLoading || isOrdersLoading) && !dashboardError && !ordersError;
   const hasError = dashboardError || ordersError;
+
+  // Memoized account balance calculation
+  const accountBalance = useMemo(() => {
+    if (isInitialLoad || isDashboardLoading) return null;
+    
+    const baseBalance = displayData?.baseAccountBalance ?? 0;
+    const profitLoss = displayData?.totalProfitLoss ?? 0;
+    return baseBalance + profitLoss;
+  }, [displayData?.baseAccountBalance, displayData?.totalProfitLoss, isInitialLoad, isDashboardLoading]);
 
   // Show loading state
   if (isDashboardLoading && !dashboardData) {
@@ -678,12 +691,13 @@ export default function DashboardPage() {
                     <div className="flex items-center gap-2 font-semibold">
                       <span>Available Balance</span>
                     </div>
-                    <span className="font-semibold">
-                      ₹{((displayData?.baseAccountBalance || 0) + 
-                         (displayData?.approvedLoanAmount || 0) - 
-                         (displayData?.totalOpenOrdersAmount || 0) + 
-                         (displayData?.totalProfitLoss || 0)).toLocaleString()}
-                    </span>
+                    {accountBalance !== null ? (
+                      <span className="font-semibold">
+                        ₹{accountBalance.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                      </span>
+                    ) : (
+                      <div className="h-6 w-32 animate-pulse bg-gray-200 rounded" />
+                    )}
                   </div>
                 </div>
               </div>
