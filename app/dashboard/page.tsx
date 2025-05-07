@@ -270,19 +270,27 @@ export default function DashboardPage() {
     ? `Last updated: ${lastUpdated.toLocaleTimeString()}`
     : 'Updating...';
 
+  // Memoized account balance calculation
+  const accountBalance = useMemo(() => {
+    if (isInitialLoad || isDashboardLoading) return null;
+    
+    const baseBalance = displayData?.baseAccountBalance ?? 0;
+    const profitLoss = displayData?.totalProfitLoss ?? 0;
+    const loanAmount = displayData?.approvedLoanAmount ?? 0;
+    const openOrdersAmount = displayData?.totalOpenOrdersAmount ?? 0;
+    return baseBalance + loanAmount - openOrdersAmount + profitLoss;
+  }, [displayData?.baseAccountBalance, displayData?.totalProfitLoss, displayData?.approvedLoanAmount, displayData?.totalOpenOrdersAmount, isInitialLoad, isDashboardLoading]);
+
   // Stats configuration - improved to never show "₹0" when loading
   const stats = useMemo(() => {
     const baseStats = [
       { 
         title: "Account Balance", 
-        value: displayData ? `₹${((displayData.baseAccountBalance || 0) + 
-                               (displayData.approvedLoanAmount || 0) - 
-                               (displayData.totalOpenOrdersAmount || 0) + 
-                               (displayData.totalProfitLoss || 0)).toLocaleString()}` : "Loading...", 
+        value: accountBalance !== null ? `₹${accountBalance.toLocaleString('en-US', { maximumFractionDigits: 2 })}` : null,
         color: "text-green-400",
         icon: <IndianRupee className="h-5 w-5 text-primary" />,
         tooltip: "Base Balance + Loan - Open Orders + Profit/Loss",
-        isLoading: !displayData
+        isLoading: accountBalance === null
       },
       { 
         title: "Total Deposits", 
@@ -332,20 +340,11 @@ export default function DashboardPage() {
     }
 
     return baseStats;
-  }, [displayData, profitLoss, profitLossPercentage, apiOpenTradesCount, openTradesInvestment]);
+  }, [displayData, profitLoss, profitLossPercentage, apiOpenTradesCount, openTradesInvestment, accountBalance]);
 
   // Loading states and error handling
   const isLoading = (isDashboardLoading || isOrdersLoading) && !dashboardError && !ordersError;
   const hasError = dashboardError || ordersError;
-
-  // Memoized account balance calculation
-  const accountBalance = useMemo(() => {
-    if (isInitialLoad || isDashboardLoading) return null;
-    
-    const baseBalance = displayData?.baseAccountBalance ?? 0;
-    const profitLoss = displayData?.totalProfitLoss ?? 0;
-    return baseBalance + profitLoss;
-  }, [displayData?.baseAccountBalance, displayData?.totalProfitLoss, isInitialLoad, isDashboardLoading]);
 
   // Show loading state
   if (isDashboardLoading && !dashboardData) {
@@ -446,12 +445,12 @@ export default function DashboardPage() {
                 <h3 className="text-sm font-medium text-muted-foreground">{stat.title}</h3>
                 <div className="mt-2 flex items-baseline gap-2">
                   {stat.isLoading ? (
-                    <div className="h-8 w-24 bg-muted animate-pulse rounded-md"></div>
+                    <div className="h-8 w-32 bg-muted animate-pulse rounded-md"></div>
                   ) : (
                     <>
-                  <p className="text-2xl font-semibold">{stat.value}</p>
-                  {stat.change && (
-                    <span className={`text-sm ${stat.color}`}>{stat.change}</span>
+                      <p className="text-2xl font-semibold">{stat.value}</p>
+                      {stat.change && (
+                        <span className={`text-sm ${stat.color}`}>{stat.change}</span>
                       )}
                     </>
                   )}
@@ -696,7 +695,7 @@ export default function DashboardPage() {
                         ₹{accountBalance.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                       </span>
                     ) : (
-                      <div className="h-6 w-32 animate-pulse bg-gray-200 rounded" />
+                      <div className="h-6 w-32 bg-muted animate-pulse rounded-md"></div>
                     )}
                   </div>
                 </div>
