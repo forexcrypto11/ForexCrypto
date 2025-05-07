@@ -29,7 +29,7 @@ type AdminDashboardData = {
     date: string;
     status: string;
   }>;
-  pendingLoans: Array<{
+  pendingLoanRequests: Array<{
     id: string;
     user: string;
     amount: string;
@@ -41,7 +41,7 @@ type AdminDashboardData = {
   totalDeposits: number;
   totalWithdrawals: number;
   pendingWithdrawals: number;
-  pendingLoans: number;
+  pendingLoansCount: number;
   recentTransactions: Array<{
     id: string;
     type: 'DEPOSIT' | 'WITHDRAW';
@@ -384,7 +384,7 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {dashboardData?.pendingLoans.map((loan) => (
+              {(dashboardData?.pendingLoanRequests || []).map((loan) => (
                 <div key={loan.id} className="flex justify-between items-center p-3 hover:bg-accent/10 rounded-lg">
                   <div>
                     <p className="font-medium">{loan.user}</p>
@@ -416,6 +416,11 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               ))}
+              {(!dashboardData?.pendingLoanRequests || dashboardData.pendingLoanRequests.length === 0) && (
+                <div className="text-center py-8 text-muted-foreground">
+                  No pending loan requests
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
