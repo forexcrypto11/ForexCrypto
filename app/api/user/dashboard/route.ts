@@ -38,6 +38,7 @@ export const GET = async (request: Request) => {
                     ]
                 },
                 select: {
+                    id: true,
                     type: true,
                     amount: true,
                     status: true,
